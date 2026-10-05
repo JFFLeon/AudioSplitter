@@ -8,41 +8,36 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusTitle = document.getElementById('statusTitle');
     const statusMessage = document.getElementById('statusMessage');
     const progressBar = document.getElementById('progressBar');
+    const terminalLogs = document.getElementById('terminalLogs');
+    const elapsedTimer = document.getElementById('elapsedTimer');
 
-    // Zeige den ausgewählten Dateinamen an
+    let timerInterval = null;
+    let secondsElapsed = 0;
+
     fileInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
-            fileLabel.textContent = e.target.files[0].name;
+            fileLabel.textContent = `Ausgewählt: ${e.target.files[0].name}`;
         }
     });
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        
         if (fileInput.files.length === 0) return;
 
-        // UI anpassen
         uploadBtn.disabled = true;
-        uploadBtn.textContent = 'Lädt hoch...';
+        uploadBtn.textContent = 'Upload läuft...';
         statusCard.classList.remove('hidden');
-        progressBar.style.width = '10%';
-        progressBar.style.background = 'var(--primary)';
-        statusTitle.textContent = 'Upload erfolgreich!';
-        statusMessage.textContent = 'Warte auf Verarbeitung...';
+        
+        startTimer();
 
         const formData = new FormData(form);
 
         try {
-            // Sende Datei an Server
-            const response = await fetch('/upload', {
-                method: 'POST',
-                body: formData
-            });
-
+            const response = await fetch('/upload', { method: 'POST', body: formData });
             const data = await response.json();
 
             if (response.ok && data.task_id) {
-                // Starte die regelmäßige Status-Abfrage (Polling)
+                uploadBtn.textContent = 'Verarbeitung gestartet';
                 pollStatus(data.task_id);
             } else {
                 throw new Error(data.error || 'Upload fehlgeschlagen');
@@ -53,34 +48,54 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function pollStatus(taskId) {
-        // Frage alle 3 Sekunden beim Server nach dem Status
         const interval = setInterval(async () => {
             try {
                 const response = await fetch(`/status/${taskId}`);
                 const task = await response.json();
 
-                statusMessage.textContent = task.message;
+                if (task.logs && task.logs.length > 0) {
+                    terminalLogs.textContent = task.logs.join('\n');
+                    terminalLogs.scrollTop = terminalLogs.scrollHeight;
+                }
 
                 if (task.status === 'processing') {
-                    progressBar.style.width = '60%';
+                    statusTitle.textContent = 'KI trennt Audio-Spuren...';
+                    statusMessage.textContent = 'Auf Render Free dauert dies ca. 2–4 Minuten.';
+                    progressBar.style.width = '65%';
                 } else if (task.status === 'completed') {
+                    stopTimer();
                     progressBar.style.width = '100%';
                     progressBar.style.background = 'var(--success)';
-                    statusTitle.textContent = 'Fertig!';
+                    statusTitle.textContent = 'Fertigstellung erfolgreich!';
+                    statusMessage.textContent = 'Lade Ergebnisse...';
                     clearInterval(interval);
                     
-                    // Lade Seite nach 2 Sekunden neu, um die Ergebnisse zu zeigen
-                    setTimeout(() => window.location.reload(), 2000);
+                    setTimeout(() => window.location.reload(), 1500);
                 } else if (task.status === 'error') {
+                    stopTimer();
                     clearInterval(interval);
                     showError(task.message);
                 }
-
             } catch (error) {
+                stopTimer();
                 clearInterval(interval);
-                showError('Verbindung zum Server verloren.');
+                showError('Verbindung zum Server unterbrochen.');
             }
-        }, 3000); // 3000 Millisekunden = 3 Sekunden
+        }, 3000);
+    }
+
+    function startTimer() {
+        secondsElapsed = 0;
+        timerInterval = setInterval(() => {
+            secondsElapsed++;
+            const mins = String(Math.floor(secondsElapsed / 60)).padStart(2, '0');
+            const secs = String(secondsElapsed % 60).padStart(2, '0');
+            elapsedTimer.textContent = `${mins}:${secs}`;
+        }, 1000);
+    }
+
+    function stopTimer() {
+        if (timerInterval) clearInterval(timerInterval);
     }
 
     function showError(message) {
