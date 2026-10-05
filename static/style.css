@@ -1,1 +1,165 @@
-*{box-sizing:border-box}body{margin:0;background:#0e1015;color:#f4f5f7;font-family:Inter,system-ui,sans-serif}.wrap{max-width:1050px;margin:50px auto;padding:0 22px}header{margin-bottom:28px}h1{font-size:36px;margin:0 0 8px}p{color:#aeb4c0}.drop{border:2px dashed #555d6d;border-radius:18px;padding:50px;text-align:center;background:#151922}.drop input{display:none}.big{font-size:23px;margin-bottom:18px}button{border:0;border-radius:10px;padding:11px 16px;background:#f2f3f5;color:#111;font-weight:700;cursor:pointer}button.secondary{background:#272d39;color:#fff}.drop span{display:block;margin-top:16px;color:#9da6b5}.hidden{display:none}.bar{height:12px;background:#252b35;border-radius:10px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:#e7eaf0}.toolbar{display:flex;gap:10px;align-items:center;margin:25px 0}.toolbar span{margin-left:auto;font-variant-numeric:tabular-nums}.track{background:#171c25;border:1px solid #2a303b;border-radius:16px;padding:18px;margin:13px 0}.tracktop{display:flex;align-items:center;gap:12px}.track h3{margin:0;min-width:100px}.track input[type=range]{flex:1}.track audio{width:100%;margin-top:12px}.range{display:flex;gap:10px;align-items:center;margin-top:12px}.range input{width:110px;background:#222;color:white;border:1px solid #3a4250;padding:8px;border-radius:8px}.muted{color:#8e97a6;font-size:13px}
+:root {
+    --bg-color: #0f172a;
+    --card-bg: #1e293b;
+    --primary: #3b82f6;
+    --primary-hover: #2563eb;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --border: #334155;
+    --success: #10b981;
+    --error: #ef4444;
+}
+
+body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(to right, #3b82f6, #8b5cf6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+header p {
+    color: var(--text-muted);
+}
+
+.upload-card, .status-card, .projects-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.file-input-wrapper {
+    position: relative;
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 3rem;
+    text-align: center;
+    margin-bottom: 1rem;
+    transition: all 0.3s;
+}
+
+.file-input-wrapper:hover {
+    border-color: var(--primary);
+    background: rgba(59, 130, 246, 0.05);
+}
+
+input[type="file"] {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+#fileLabel {
+    font-weight: 600;
+    color: var(--primary);
+}
+
+button {
+    width: 100%;
+    padding: 1rem;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+button:hover {
+    background: var(--primary-hover);
+}
+
+.hidden {
+    display: none;
+}
+
+.progress-bar-container {
+    width: 100%;
+    background: var(--border);
+    border-radius: 4px;
+    height: 8px;
+    margin-top: 1rem;
+    overflow: hidden;
+}
+
+.progress-bar {
+    width: 0%;
+    height: 100%;
+    background: var(--primary);
+    transition: width 0.4s ease;
+    /* Lade-Animation */
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+}
+
+.file-list {
+    list-style: none;
+    padding: 0;
+}
+
+.file-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.file-name {
+    font-family: monospace;
+    color: var(--text-muted);
+}
+
+.actions {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.download-btn {
+    text-decoration: none;
+    color: white;
+    background: var(--border);
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    transition: background 0.3s;
+}
+
+.download-btn:hover {
+    background: var(--text-muted);
+}
