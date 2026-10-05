@@ -5,12 +5,11 @@ import threading
 import subprocess
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'ein-sehr-geheimer-schluessel-123')
+app.secret_key = os.environ.get('SECRET_KEY', 'geheimer-audio-splitter-key-9988')
 
 BASE_UPLOAD_FOLDER = 'uploads'
 BASE_OUTPUT_FOLDER = 'outputs'
 
-# In-Memory Speicher für den Aufgaben-Status
 tasks = {}
 
 def get_user_directories():
@@ -25,24 +24,42 @@ def get_user_directories():
 
 def split_audio_task(task_id, filepath, output_dir):
     tasks[task_id]['status'] = 'processing'
-    tasks[task_id]['message'] = 'KI lädt Modell und analysiert Audio (Dies kann einige Minuten dauern)...'
+    tasks[task_id]['logs'] = ['Starte KI-Audio-Trennung (Demucs)...']
     
     try:
-        # Führt Demucs als Subprozess aus, damit Gunicorn nicht blockiert wird.
-        # Demucs speichert die Dateien automatisch im output_dir
-        command = ["python", "-m", "demucs", "--out", output_dir, filepath]
+        command = [
+            "python", "-m", "demucs",
+            "-n", "htdemucs",
+            "--out", output_dir,
+            filepath
+        ]
         
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
         
-        # Warten bis der Prozess fertig ist
-        process.wait()
-        
-        if process.returncode == 0:
+        # Liest Ausgaben zeilenweise für das Live-Terminal im Frontend
+        for line in iter(process.stdout.readline, ''):
+            clean_line = line.strip()
+            if clean_line:
+                tasks[task_id]['logs'].append(clean_line)
+                if len(tasks[task_id]['logs']) > 15:
+                    tasks[task_id]['logs'].pop(0)
+
+        process.stdout.close()
+        return_code = process.wait()
+
+        if return_code == 0:
             tasks[task_id]['status'] = 'completed'
             tasks[task_id]['message'] = 'Audio erfolgreich getrennt!'
         else:
             tasks[task_id]['status'] = 'error'
-            tasks[task_id]['message'] = 'Fehler: Server hat nicht genug Arbeitsspeicher (Out of Memory) oder ungültige Datei.'
+            tasks[task_id]['message'] = 'Fehler: Server hat eventuell nicht genug RAM (Out of Memory auf Render Free).'
+
     except Exception as e:
         tasks[task_id]['status'] = 'error'
         tasks[task_id]['message'] = f'Interner Fehler: {str(e)}'
@@ -51,19 +68,27 @@ def split_audio_task(task_id, filepath, output_dir):
 def index():
     _, user_output = get_user_directories()
     
-    user_projects = []
+    grouped_projects = {}
     if os.path.exists(user_output):
-        # Durchsuche alle Unterordner, da Demucs oft Ordner wie "htdemucs/songname" anlegt
         for root, dirs, files in os.walk(user_output):
             for file in files:
-                if file.endswith(('.wav', '.mp3', '.flac')):
-                    # Relativen Pfad für den Download erstellen
-                    rel_path = os.path.relpath(os.path.join(root, file), user_output)
-                    # Für Windows-Kompatibilität bei lokaler Entwicklung Backslash zu Slash ändern
-                    rel_path = rel_path.replace('\\', '/')
-                    user_projects.append(rel_path)
+                if file.endswith(('.wav', '.mp3', '.flac', '.ogg')):
+                    full_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(full_path, user_output).replace('\\', '/')
                     
-    return render_template('index.html', projects=user_projects)
+                    parts = rel_path.split('/')
+                    song_name = parts[-2] if len(parts) >= 2 else "Unbenannt"
+                    stem_name = os.path.splitext(parts[-1])[0]
+                    
+                    if song_name not in grouped_projects:
+                        grouped_projects[song_name] = []
+                    
+                    grouped_projects[song_name].append({
+                        'stem': stem_name,
+                        'filename': rel_path
+                    })
+                    
+    return render_template('index.html', grouped_projects=grouped_projects)
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -79,22 +104,24 @@ def upload_file():
     filepath = os.path.join(user_upload, file.filename)
     file.save(filepath)
     
-    # Eindeutige ID für diesen Verarbeitungsjob erstellen
     task_id = str(uuid.uuid4())
-    tasks[task_id] = {'status': 'queued', 'message': 'Datei hochgeladen. In Warteschlange...'}
+    tasks[task_id] = {
+        'status': 'queued',
+        'message': 'Datei empfangen. Vorbereitung...',
+        'logs': ['Upload abgeschlossen. Job gestartet...']
+    }
     
-    # Hintergrund-Thread starten
     thread = threading.Thread(target=split_audio_task, args=(task_id, filepath, user_output))
+    thread.daemon = True
     thread.start()
     
     return jsonify({"task_id": task_id}), 200
 
 @app.route('/status/<task_id>')
 def get_status(task_id):
-    task = tasks.get(task_id, {"status": "not_found", "message": "Aufgabe nicht gefunden"})
+    task = tasks.get(task_id, {"status": "not_found", "message": "Unbekannter Job"})
     return jsonify(task)
 
-# Wichtig: <path:filename> erlaubt es, auch Dateien in Unterordnern herunterzuladen
 @app.route('/download/<path:filename>')
 def download_file(filename):
     _, user_output = get_user_directories()
