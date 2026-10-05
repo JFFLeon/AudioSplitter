@@ -1,6 +1,60 @@
-<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Audio Stem Splitter</title><link rel="stylesheet" href="/static/style.css"></head><body>
-<div class="wrap"><header><h1>🎵 Audio Stem Splitter</h1><p>MP3/WAV hochladen → Stimme, Drums, Bass und Melodie getrennen → schneiden → downloaden.</p></header>
-<section id="drop" class="drop"><input id="file" type="file" accept="audio/*"><div class="big">Datei hierher ziehen</div><button onclick="document.getElementById('file').click()">Audio auswählen</button><span id="name"></span></section>
-<section id="progress" class="hidden"><div class="bar"><i id="bar"></i></div><p id="status">Analyse läuft …</p></section>
-<section id="editor" class="hidden"><div class="toolbar"><button id="playAll">▶ Alle</button><button id="stop">■ Stop</button><span id="time">00:00.000</span></div><div id="tracks"></div></section>
-</div><script src="/static/app.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Audio Splitter</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AI Audio Splitter</h1>
+            <p>Trenne Vocals, Bass, Drums und Melodie aus deinen Songs</p>
+        </header>
+
+        <main>
+            <div class="upload-card">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="file-input-wrapper">
+                        <input type="file" name="file" id="file" accept=".mp3, .wav, .flac" required>
+                        <label for="file" id="fileLabel">Klicke hier oder ziehe eine Audio-Datei herein</label>
+                    </div>
+                    <button type="submit" id="uploadBtn">Track splitten</button>
+                </form>
+            </div>
+
+            <!-- Live Status Bereich (initial versteckt) -->
+            <div id="statusCard" class="status-card hidden">
+                <h3 id="statusTitle">Verarbeitung läuft...</h3>
+                <p id="statusMessage">Initialisiere...</p>
+                <div class="progress-bar-container">
+                    <div id="progressBar" class="progress-bar"></div>
+                </div>
+            </div>
+
+            <!-- Liste der fertigen Dateien -->
+            <div class="projects-card">
+                <h2>Deine fertigen Spuren</h2>
+                {% if projects %}
+                    <ul class="file-list">
+                    {% for project in projects %}
+                        <li>
+                            <span class="file-name">{{ project }}</span>
+                            <div class="actions">
+                                <audio controls src="{{ url_for('download_file', filename=project) }}"></audio>
+                                <a href="{{ url_for('download_file', filename=project) }}" class="download-btn" download>Download</a>
+                            </div>
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="empty-state">Noch keine Dateien verarbeitet. Lade einen Song hoch!</p>
+                {% endif %}
+            </div>
+        </main>
+    </div>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
