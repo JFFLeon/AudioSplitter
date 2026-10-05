@@ -1,7 +1,95 @@
-const file=document.getElementById('file'), drop=document.getElementById('drop'), progress=document.getElementById('progress'), editor=document.getElementById('editor'), bar=document.getElementById('bar'), statusEl=document.getElementById('status'), tracks=document.getElementById('tracks'); let job;
-file.addEventListener('change',()=>upload(file.files[0]));
-['dragover','dragenter'].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.add('over')}));['dragleave','drop'].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.remove('over')}));drop.addEventListener('drop',e=>upload(e.dataTransfer.files[0]));
-async function upload(f){if(!f)return;document.getElementById('name').textContent=f.name;progress.classList.remove('hidden');const fd=new FormData();fd.append('file',f);const r=await fetch('/api/upload',{method:'POST',body:fd});const j=await r.json();job=j.job_id;poll()}
-async function poll(){const r=await fetch('/api/status/'+job),j=await r.json();bar.style.width=(j.progress||0)+'%';statusEl.textContent=j.status==='separating'?'KI-Trennung läuft …':j.status==='error'?j.error:'Fertig';if(j.status==='done'){render(j.stems);return}if(j.status==='error')return;setTimeout(poll,1500)}
-function render(stems){editor.classList.remove('hidden');tracks.innerHTML='';const labels={vocals:'🎤 Stimme',drums:'🥁 Drums',bass:'🎸 Bass',other:'🎹 Melodie / Other'};Object.entries(stems).forEach(([stem,url])=>{const d=document.createElement('div');d.className='track';d.innerHTML=`<div class="tracktop"><h3>${labels[stem]}</h3><button class="secondary" data-play>▶</button><button class="secondary" data-mute>Mute</button><input data-vol type="range" min="0" max="1" step="0.01" value="1"><button data-download>Download WAV</button></div><audio controls preload="metadata" src="${url}"></audio><div class="range"><span class="muted">Start</span><input data-start type="number" min="0" step="0.01" value="0"><span class="muted">End</span><input data-end type="number" min="0" step="0.01" value="0"><button data-cut>Zuschneiden & MP3</button></div>`;tracks.appendChild(d);const a=d.querySelector('audio'),vol=d.querySelector('[data-vol]');a.onloadedmetadata=()=>d.querySelector('[data-end]').value=a.duration.toFixed(2);d.querySelector('[data-play]').onclick=()=>{document.querySelectorAll('audio').forEach(x=>{if(x!==a)x.pause()});a.paused?a.play():a.pause()};d.querySelector('[data-mute]').onclick=()=>{a.muted=!a.muted;d.querySelector('[data-mute]').textContent=a.muted?'Unmute':'Mute'};vol.oninput=()=>a.volume=vol.value;d.querySelector('[data-download]').onclick=()=>{const x=document.createElement('a');x.href=url;x.download=stem+'.wav';x.click()};d.querySelector('[data-cut]').onclick=async()=>{const start=+d.querySelector('[data-start]').value,end=+d.querySelector('[data-end]').value;if(!(end>start)){alert('Ende muss größer als Start sein.');return}const rr=await fetch(`/api/cut/${job}/${stem}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({start,end})});const jj=await rr.json();if(jj.url){const x=document.createElement('a');x.href=jj.url;x.download=stem+'.mp3';x.click()}}});}
-document.getElementById('playAll').onclick=()=>document.querySelectorAll('audio').forEach(a=>a.play());document.getElementById('stop').onclick=()=>document.querySelectorAll('audio').forEach(a=>a.pause());
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('uploadForm');
+    const fileInput = document.getElementById('file');
+    const fileLabel = document.getElementById('fileLabel');
+    const uploadBtn = document.getElementById('uploadBtn');
+    
+    const statusCard = document.getElementById('statusCard');
+    const statusTitle = document.getElementById('statusTitle');
+    const statusMessage = document.getElementById('statusMessage');
+    const progressBar = document.getElementById('progressBar');
+
+    // Zeige den ausgewählten Dateinamen an
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            fileLabel.textContent = e.target.files[0].name;
+        }
+    });
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        if (fileInput.files.length === 0) return;
+
+        // UI anpassen
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = 'Lädt hoch...';
+        statusCard.classList.remove('hidden');
+        progressBar.style.width = '10%';
+        progressBar.style.background = 'var(--primary)';
+        statusTitle.textContent = 'Upload erfolgreich!';
+        statusMessage.textContent = 'Warte auf Verarbeitung...';
+
+        const formData = new FormData(form);
+
+        try {
+            // Sende Datei an Server
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.task_id) {
+                // Starte die regelmäßige Status-Abfrage (Polling)
+                pollStatus(data.task_id);
+            } else {
+                throw new Error(data.error || 'Upload fehlgeschlagen');
+            }
+        } catch (error) {
+            showError(error.message);
+        }
+    });
+
+    function pollStatus(taskId) {
+        // Frage alle 3 Sekunden beim Server nach dem Status
+        const interval = setInterval(async () => {
+            try {
+                const response = await fetch(`/status/${taskId}`);
+                const task = await response.json();
+
+                statusMessage.textContent = task.message;
+
+                if (task.status === 'processing') {
+                    progressBar.style.width = '60%';
+                } else if (task.status === 'completed') {
+                    progressBar.style.width = '100%';
+                    progressBar.style.background = 'var(--success)';
+                    statusTitle.textContent = 'Fertig!';
+                    clearInterval(interval);
+                    
+                    // Lade Seite nach 2 Sekunden neu, um die Ergebnisse zu zeigen
+                    setTimeout(() => window.location.reload(), 2000);
+                } else if (task.status === 'error') {
+                    clearInterval(interval);
+                    showError(task.message);
+                }
+
+            } catch (error) {
+                clearInterval(interval);
+                showError('Verbindung zum Server verloren.');
+            }
+        }, 3000); // 3000 Millisekunden = 3 Sekunden
+    }
+
+    function showError(message) {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = 'Erneut versuchen';
+        statusTitle.textContent = 'Fehler aufgetreten';
+        statusTitle.style.color = 'var(--error)';
+        statusMessage.textContent = message;
+        progressBar.style.background = 'var(--error)';
+        progressBar.style.width = '100%';
+    }
+});
