@@ -3,54 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Audio Splitter</title>
+    <title>AI Audio Stem Splitter</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>AI Audio Splitter</h1>
-            <p>Trenne Vocals, Bass, Drums und Melodie aus deinen Songs</p>
+            <div class="logo-badge">AI POWERED</div>
+            <h1>Audio Stem Splitter</h1>
+            <p>Trenne Songs isoliert in Vocals, Drums, Bass & Instrumental-Spuren</p>
         </header>
 
         <main>
-            <div class="upload-card">
+            <!-- Upload Box -->
+            <div class="card upload-card">
                 <form id="uploadForm" enctype="multipart/form-data">
-                    <div class="file-input-wrapper">
-                        <input type="file" name="file" id="file" accept=".mp3, .wav, .flac" required>
-                        <label for="file" id="fileLabel">Klicke hier oder ziehe eine Audio-Datei herein</label>
+                    <div class="file-dropzone" id="dropzone">
+                        <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <input type="file" name="file" id="file" accept=".mp3, .wav, .flac, .ogg" required>
+                        <span id="fileLabel" class="drop-text">Audio-Datei auswählen oder hierher ziehen</span>
+                        <span class="file-hint">Unterstützt MP3, WAV, FLAC, OGG</span>
                     </div>
-                    <button type="submit" id="uploadBtn">Track splitten</button>
+                    <button type="submit" id="uploadBtn">Track spalten starten</button>
                 </form>
             </div>
 
-            <!-- Live Status Bereich (initial versteckt) -->
-            <div id="statusCard" class="status-card hidden">
-                <h3 id="statusTitle">Verarbeitung läuft...</h3>
-                <p id="statusMessage">Initialisiere...</p>
+            <!-- Live Status & Console Box -->
+            <div id="statusCard" class="card status-card hidden">
+                <div class="status-header">
+                    <div>
+                        <h3 id="statusTitle">Verarbeitung läuft...</h3>
+                        <p id="statusMessage">Initialisiere Modell...</p>
+                    </div>
+                    <div class="timer" id="elapsedTimer">00:00</div>
+                </div>
+                
                 <div class="progress-bar-container">
                     <div id="progressBar" class="progress-bar"></div>
                 </div>
+
+                <div class="terminal-box">
+                    <div class="terminal-header">KI-LOGS (ECHTZEIT)</div>
+                    <pre id="terminalLogs">Warte auf Server-Rückmeldung...</pre>
+                </div>
             </div>
 
-            <!-- Liste der fertigen Dateien -->
-            <div class="projects-card">
-                <h2>Deine fertigen Spuren</h2>
-                {% if projects %}
-                    <ul class="file-list">
-                    {% for project in projects %}
-                        <li>
-                            <span class="file-name">{{ project }}</span>
-                            <div class="actions">
-                                <audio controls src="{{ url_for('download_file', filename=project) }}"></audio>
-                                <a href="{{ url_for('download_file', filename=project) }}" class="download-btn" download>Download</a>
+            <!-- Projektliste -->
+            <div class="card projects-card">
+                <h2>Deine fertigen Songs</h2>
+                {% if grouped_projects %}
+                    {% for song_name, stems in grouped_projects.items() %}
+                        <div class="song-group">
+                            <h3 class="song-title">🎵 {{ song_name }}</h3>
+                            <div class="stems-grid">
+                                {% for item in stems %}
+                                    <div class="stem-card">
+                                        <div class="stem-header">
+                                            <span class="stem-badge stem-{{ item.stem }}">{{ item.stem | upper }}</span>
+                                            <a href="{{ url_for('download_file', filename=item.filename) }}" class="icon-download" download title="Download">⬇</a>
+                                        </div>
+                                        <audio controls src="{{ url_for('download_file', filename=item.filename) }}"></audio>
+                                    </div>
+                                {% endfor %}
                             </div>
-                        </li>
+                        </div>
                     {% endfor %}
-                    </ul>
                 {% else %}
-                    <p class="empty-state">Noch keine Dateien verarbeitet. Lade einen Song hoch!</p>
+                    <p class="empty-state">Noch keine Spuren erstellt. Lade oben einen Song hoch!</p>
                 {% endif %}
             </div>
         </main>
