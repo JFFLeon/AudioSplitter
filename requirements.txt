@@ -1,9 +1,6 @@
-fastapi==0.115.12
-uvicorn[standard]==0.34.2
-python-multipart==0.0.20
-pydantic==2.11.3
-torchaudio==2.6.0
-demucs==4.0.1
-soundfile==0.13.1
-gunicorn==21.2.0
 Flask==3.0.3
+gunicorn==21.2.0
+demucs==4.0.1
+torch==2.6.0
+torchaudio==2.6.0
+soundfile==0.13.1
