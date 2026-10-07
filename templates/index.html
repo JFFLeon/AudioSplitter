@@ -3,20 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Audio Stem Splitter</title>
+    <title>AI Audio Splitter Studio</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- WaveSurfer.js CDN für Audacity-Style Wellenformen -->
+    <script src="https://unpkg.com/wavesurfer.js@7"></script>
 </head>
 <body>
     <div class="container">
         <header>
-            <div class="logo-badge">AI POWERED</div>
-            <h1>Audio Stem Splitter</h1>
-            <p>Trenne Songs isoliert in Vocals, Drums, Bass & Instrumental-Spuren</p>
+            <div class="logo-badge">PRO AUDIO STUDIO</div>
+            <h1>AI Stem Splitter</h1>
+            <p>Multitrack-Audiotrennung mit synchroner Audacity-Live-Vorschau</p>
         </header>
 
         <main>
-            <!-- Upload Box -->
+            <!-- Upload Card -->
             <div class="card upload-card">
                 <form id="uploadForm" enctype="multipart/form-data">
                     <div class="file-dropzone" id="dropzone">
@@ -25,11 +27,11 @@
                         <span id="fileLabel" class="drop-text">Audio-Datei auswählen oder hierher ziehen</span>
                         <span class="file-hint">Unterstützt MP3, WAV, FLAC, OGG</span>
                     </div>
-                    <button type="submit" id="uploadBtn">Track spalten starten</button>
+                    <button type="submit" id="uploadBtn">Track verarbeiten</button>
                 </form>
             </div>
 
-            <!-- Live Status & Console Box -->
+            <!-- Live Progress / Console -->
             <div id="statusCard" class="card status-card hidden">
                 <div class="status-header">
                     <div>
@@ -44,33 +46,59 @@
                 </div>
 
                 <div class="terminal-box">
-                    <div class="terminal-header">KI-LOGS (ECHTZEIT)</div>
+                    <div class="terminal-header">KI ECHTZEIT-LOGS</div>
                     <pre id="terminalLogs">Warte auf Server-Rückmeldung...</pre>
                 </div>
             </div>
 
-            <!-- Projektliste -->
-            <div class="card projects-card">
-                <h2>Deine fertigen Songs</h2>
+            <!-- Audacity Multitrack Studio Section -->
+            <div class="card studio-card">
+                <h2>Deine Multitrack Projekte</h2>
                 {% if grouped_projects %}
                     {% for song_name, stems in grouped_projects.items() %}
-                        <div class="song-group">
-                            <h3 class="song-title">🎵 {{ song_name }}</h3>
-                            <div class="stems-grid">
+                        {% set song_id = loop.index %}
+                        <div class="audacity-studio" data-song-id="{{ song_id }}">
+                            <div class="studio-header">
+                                <h3 class="song-title">🎵 {{ song_name }}</h3>
+                                <!-- Master Controls für synchrone Wiedergabe -->
+                                <div class="master-controls">
+                                    <button class="btn-master-play" onclick="toggleMasterPlay('{{ song_id }}')">▶ / ❚❚ Master Play</button>
+                                    <button class="btn-master-stop" onclick="stopMasterPlay('{{ song_id }}')">◼ Stop</button>
+                                    <span class="master-time" id="time-display-{{ song_id }}">00:00 / 00:00</span>
+                                </div>
+                            </div>
+
+                            <!-- Multitrack Spuren untereinander -->
+                            <div class="multitrack-container">
                                 {% for item in stems %}
-                                    <div class="stem-card">
-                                        <div class="stem-header">
-                                            <span class="stem-badge stem-{{ item.stem }}">{{ item.stem | upper }}</span>
-                                            <a href="{{ url_for('download_file', filename=item.filename) }}" class="icon-download" download title="Download">⬇</a>
+                                    <div class="track-row" data-stem="{{ item.stem }}">
+                                        <!-- Linkes Bedienfeld (Audacity Track Control) -->
+                                        <div class="track-controls">
+                                            <div class="track-meta">
+                                                <span class="stem-badge stem-{{ item.stem }}">{{ item.stem | upper }}</span>
+                                                <a href="{{ url_for('download_file', filename=item.filename) }}" class="btn-download" download title="Download">⬇ WAV</a>
+                                            </div>
+                                            <div class="track-buttons">
+                                                <button class="btn-mute" onclick="toggleMute('{{ song_id }}', '{{ item.stem }}', this)">M</button>
+                                                <button class="btn-solo" onclick="toggleSolo('{{ song_id }}', '{{ item.stem }}', this)">S</button>
+                                            </div>
+                                            <div class="volume-slider-wrapper">
+                                                <span>🔊</span>
+                                                <input type="range" class="volume-slider" min="0" max="1" step="0.01" value="1" oninput="changeVolume('{{ song_id }}', '{{ item.stem }}', this.value)">
+                                            </div>
                                         </div>
-                                        <audio controls src="{{ url_for('download_file', filename=item.filename) }}"></audio>
+
+                                        <!-- Rechte Wellenform-Anzeige (Waveform Canvas) -->
+                                        <div class="waveform-container">
+                                            <div id="waveform-{{ song_id }}-{{ item.stem }}" class="waveform-element" data-url="{{ url_for('download_file', filename=item.filename) }}"></div>
+                                        </div>
                                     </div>
                                 {% endfor %}
                             </div>
                         </div>
                     {% endfor %}
                 {% else %}
-                    <p class="empty-state">Noch keine Spuren erstellt. Lade oben einen Song hoch!</p>
+                    <p class="empty-state">Noch keine Spuren erstellt. Lade oben deinen ersten Song hoch!</p>
                 {% endif %}
             </div>
         </main>
