@@ -1,18 +1,14 @@
-// Globaler Speicher für WaveSurfer Instanzen pro Song
 const wavesurferInstances = {};
-const soloStates = {};
 
 document.addEventListener('DOMContentLoaded', () => {
     initWaveforms();
     initUploadForm();
 });
 
-// Initialisiert die Audacity-Wellenformen für alle Songs auf der Seite
 function initWaveforms() {
     document.querySelectorAll('.audacity-studio').forEach(studio => {
         const songId = studio.dataset.songId;
         wavesurferInstances[songId] = {};
-        soloStates[songId] = false;
 
         const trackElements = studio.querySelectorAll('.waveform-element');
         let masterDuration = 0;
@@ -21,39 +17,35 @@ function initWaveforms() {
             const stem = elem.id.split('-').pop();
             const audioUrl = elem.dataset.url;
 
-            // Farbgebung je nach Stem-Typ
             let waveColor = '#3b82f6';
             let progressColor = '#60a5fa';
             if (stem === 'vocals') { waveColor = '#ec4899'; progressColor = '#f472b6'; }
             else if (stem === 'drums') { waveColor = '#f97316'; progressColor = '#fb923c'; }
             else if (stem === 'other') { waveColor = '#8b5cf6'; progressColor = '#a78bfa'; }
 
-            // WaveSurfer Instanz erstellen
             const ws = WaveSurfer.create({
                 container: `#${elem.id}`,
                 waveColor: waveColor,
                 progressColor: progressColor,
                 cursorColor: '#f43f5e',
                 cursorWidth: 2,
-                height: 80,
+                height: 70,
                 normalize: true,
                 url: audioUrl
             });
 
             wavesurferInstances[songId][stem] = ws;
 
-            // Sobald die erste Spur geladen ist, Dauer anzeigen
             ws.on('ready', () => {
                 masterDuration = ws.getDuration();
                 updateTimeDisplay(songId, 0, masterDuration);
             });
 
-            // Synchrones Seeking (Klick irgendwo in die Waveform versetzt ALLE Spuren)
+            // Synchrones Klicken an jede beliebige Stelle im Song
             ws.on('interaction', (newTime) => {
                 syncSeeking(songId, newTime);
             });
 
-            // Zeitaktualisierung bei Wiedergabe
             ws.on('timeupdate', (currentTime) => {
                 if (stem === Object.keys(wavesurferInstances[songId])[0]) {
                     updateTimeDisplay(songId, currentTime, masterDuration);
@@ -63,17 +55,22 @@ function initWaveforms() {
     });
 }
 
-// Synchronisiert den Klick an eine beliebige Stelle (Audacity-Seeking)
 function syncSeeking(songId, targetTime) {
     Object.values(wavesurferInstances[songId]).forEach(ws => {
         ws.setTime(targetTime);
     });
 }
 
-// Master Play / Pause Toggle
 function toggleMasterPlay(songId) {
     const instances = Object.values(wavesurferInstances[songId]);
     if (instances.length === 0) return;
+
+    // Entsperre AudioContext für moderne Browser
+    instances.forEach(ws => {
+        if (ws.options.audioContext && ws.options.audioContext.state === 'suspended') {
+            ws.options.audioContext.resume();
+        }
+    });
 
     const isPlaying = instances[0].isPlaying();
     instances.forEach(ws => {
@@ -85,7 +82,6 @@ function toggleMasterPlay(songId) {
     });
 }
 
-// Master Stop (Zurück zum Anfang)
 function stopMasterPlay(songId) {
     Object.values(wavesurferInstances[songId]).forEach(ws => {
         ws.pause();
@@ -93,7 +89,6 @@ function stopMasterPlay(songId) {
     });
 }
 
-// Mute Toggle (Stummschalten)
 function toggleMute(songId, stem, btn) {
     const ws = wavesurferInstances[songId][stem];
     if (!ws) return;
@@ -103,7 +98,6 @@ function toggleMute(songId, stem, btn) {
     btn.classList.toggle('active', !isMuted);
 }
 
-// Solo Toggle (Nur diese Spur anhören)
 function toggleSolo(songId, stem, btn) {
     const instances = wavesurferInstances[songId];
     if (!instances) return;
@@ -111,17 +105,14 @@ function toggleSolo(songId, stem, btn) {
     const isCurrentlySolo = btn.classList.contains('active');
     btn.classList.toggle('active', !isCurrentlySolo);
 
-    // Prüfen, ob noch eine Spur im Solo-Modus ist
     const activeSolos = Array.from(document.querySelectorAll(`.audacity-studio[data-song-id="${songId}"] .btn-solo.active`));
     
     if (activeSolos.length > 0) {
-        // Mindestens eine Spur ist Solo -> Alle NICHT-Solo Spuren stummschalten
         Object.keys(instances).forEach(s => {
             const isStemSolo = document.querySelector(`.audacity-studio[data-song-id="${songId}"] .track-row[data-stem="${s}"] .btn-solo`).classList.contains('active');
             instances[s].setMuted(!isStemSolo);
         });
     } else {
-        // Kein Solo mehr aktiv -> Mute-Zustände basierend auf den M-Buttons wiederherstellen
         Object.keys(instances).forEach(s => {
             const isMutedByBtn = document.querySelector(`.audacity-studio[data-song-id="${songId}"] .track-row[data-stem="${s}"] .btn-mute`).classList.contains('active');
             instances[s].setMuted(isMutedByBtn);
@@ -129,7 +120,6 @@ function toggleSolo(songId, stem, btn) {
     }
 }
 
-// Lautstärke-Regler für einzelne Spuren
 function changeVolume(songId, stem, value) {
     const ws = wavesurferInstances[songId][stem];
     if (ws) {
@@ -137,7 +127,6 @@ function changeVolume(songId, stem, value) {
     }
 }
 
-// Zeitanzeige Formatierung (00:00 / 03:45)
 function updateTimeDisplay(songId, current, total) {
     const elem = document.getElementById(`time-display-${songId}`);
     if (elem) {
@@ -152,7 +141,6 @@ function formatTime(seconds) {
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
-// Live-Polling & Upload Handler
 function initUploadForm() {
     const form = document.getElementById('uploadForm');
     const fileInput = document.getElementById('file');
