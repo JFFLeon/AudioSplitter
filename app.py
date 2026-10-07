@@ -13,6 +13,14 @@ BASE_OUTPUT_FOLDER = 'outputs'
 
 tasks = {}
 
+# CORS Header für WaveSurfer & Browser-Audio aktivieren
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Range'
+    response.headers['Access-Control-Expose-Headers'] = 'Content-Length, Content-Range'
+    return response
+
 def get_user_directories():
     if 'user_id' not in session:
         session['user_id'] = str(uuid.uuid4())
