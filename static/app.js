@@ -1,4 +1,5 @@
 const wavesurferInstances = {};
+const nativeAudioElements = {};
 
 document.addEventListener('DOMContentLoaded', () => {
     initWaveforms();
@@ -9,13 +10,17 @@ function initWaveforms() {
     document.querySelectorAll('.audacity-studio').forEach(studio => {
         const songId = studio.dataset.songId;
         wavesurferInstances[songId] = {};
+        nativeAudioElements[songId] = {};
 
         const trackElements = studio.querySelectorAll('.waveform-element');
         let masterDuration = 0;
 
         trackElements.forEach(elem => {
             const stem = elem.id.split('-').pop();
-            const audioUrl = elem.dataset.url;
+            const loadingElem = document.getElementById(`loading-${songId}-${stem}`);
+            const audioFallback = document.getElementById(`audio-fallback-${songId}-${stem}`);
+
+            nativeAudioElements[songId][stem] = audioFallback;
 
             let waveColor = '#3b82f6';
             let progressColor = '#60a5fa';
@@ -23,34 +28,46 @@ function initWaveforms() {
             else if (stem === 'drums') { waveColor = '#f97316'; progressColor = '#fb923c'; }
             else if (stem === 'other') { waveColor = '#8b5cf6'; progressColor = '#a78bfa'; }
 
-            const ws = WaveSurfer.create({
-                container: `#${elem.id}`,
-                waveColor: waveColor,
-                progressColor: progressColor,
-                cursorColor: '#f43f5e',
-                cursorWidth: 2,
-                height: 70,
-                normalize: true,
-                url: audioUrl
-            });
+            try {
+                // Verbinde WaveSurfer direkt mit dem HTML5 Audio-Element
+                const ws = WaveSurfer.create({
+                    container: elem,
+                    media: audioFallback,
+                    waveColor: waveColor,
+                    progressColor: progressColor,
+                    cursorColor: '#f43f5e',
+                    cursorWidth: 2,
+                    height: 70,
+                    normalize: true
+                });
 
-            wavesurferInstances[songId][stem] = ws;
+                wavesurferInstances[songId][stem] = ws;
 
-            ws.on('ready', () => {
-                masterDuration = ws.getDuration();
-                updateTimeDisplay(songId, 0, masterDuration);
-            });
+                ws.on('ready', () => {
+                    if (loadingElem) loadingElem.style.display = 'none';
+                    masterDuration = ws.getDuration();
+                    updateTimeDisplay(songId, 0, masterDuration);
+                });
 
-            // Synchrones Klicken an jede beliebige Stelle im Song
-            ws.on('interaction', (newTime) => {
-                syncSeeking(songId, newTime);
-            });
+                ws.on('interaction', (newTime) => {
+                    syncSeeking(songId, newTime);
+                });
 
-            ws.on('timeupdate', (currentTime) => {
-                if (stem === Object.keys(wavesurferInstances[songId])[0]) {
-                    updateTimeDisplay(songId, currentTime, masterDuration);
-                }
-            });
+                ws.on('timeupdate', (currentTime) => {
+                    if (stem === Object.keys(wavesurferInstances[songId])[0]) {
+                        updateTimeDisplay(songId, currentTime, masterDuration);
+                    }
+                });
+
+                ws.on('error', (err) => {
+                    console.error('WaveSurfer Fehler:', err);
+                    if (loadingElem) loadingElem.textContent = 'Audio bereit (Fallback-Modus)';
+                });
+
+            } catch (err) {
+                console.error('WaveSurfer Init-Fehler:', err);
+                if (loadingElem) loadingElem.textContent = 'Audio bereit';
+            }
         });
     });
 }
@@ -63,23 +80,24 @@ function syncSeeking(songId, targetTime) {
 
 function toggleMasterPlay(songId) {
     const instances = Object.values(wavesurferInstances[songId]);
-    if (instances.length === 0) return;
+    const nativeAudios = Object.values(nativeAudioElements[songId]);
 
-    // Entsperre AudioContext für moderne Browser
-    instances.forEach(ws => {
-        if (ws.options.audioContext && ws.options.audioContext.state === 'suspended') {
-            ws.options.audioContext.resume();
-        }
-    });
+    if (instances.length === 0 && nativeAudios.length === 0) return;
 
-    const isPlaying = instances[0].isPlaying();
-    instances.forEach(ws => {
-        if (isPlaying) {
-            ws.pause();
-        } else {
-            ws.play();
-        }
-    });
+    let isPlaying = false;
+    if (instances.length > 0 && instances[0]) {
+        isPlaying = instances[0].isPlaying();
+    } else if (nativeAudios.length > 0 && nativeAudios[0]) {
+        isPlaying = !nativeAudios[0].paused;
+    }
+
+    if (isPlaying) {
+        instances.forEach(ws => ws.pause());
+        nativeAudios.forEach(a => a && a.pause());
+    } else {
+        instances.forEach(ws => ws.play().catch(e => console.log('Play-Error:', e)));
+        nativeAudios.forEach(a => a && a.play().catch(e => console.log('Audio-Play-Error:', e)));
+    }
 }
 
 function stopMasterPlay(songId) {
@@ -87,19 +105,30 @@ function stopMasterPlay(songId) {
         ws.pause();
         ws.setTime(0);
     });
+    Object.values(nativeAudioElements[songId]).forEach(a => {
+        if (a) {
+            a.pause();
+            a.currentTime = 0;
+        }
+    });
 }
 
 function toggleMute(songId, stem, btn) {
     const ws = wavesurferInstances[songId][stem];
-    if (!ws) return;
+    const audio = nativeAudioElements[songId][stem];
 
-    const isMuted = ws.getMuted();
-    ws.setMuted(!isMuted);
-    btn.classList.toggle('active', !isMuted);
+    const isCurrentlyMuted = btn.classList.contains('active');
+    const nextMuteState = !isCurrentlyMuted;
+
+    if (ws) ws.setMuted(nextMuteState);
+    if (audio) audio.muted = nextMuteState;
+
+    btn.classList.toggle('active', nextMuteState);
 }
 
 function toggleSolo(songId, stem, btn) {
     const instances = wavesurferInstances[songId];
+    const nativeAudios = nativeAudioElements[songId];
     if (!instances) return;
 
     const isCurrentlySolo = btn.classList.contains('active');
@@ -110,21 +139,25 @@ function toggleSolo(songId, stem, btn) {
     if (activeSolos.length > 0) {
         Object.keys(instances).forEach(s => {
             const isStemSolo = document.querySelector(`.audacity-studio[data-song-id="${songId}"] .track-row[data-stem="${s}"] .btn-solo`).classList.contains('active');
-            instances[s].setMuted(!isStemSolo);
+            if (instances[s]) instances[s].setMuted(!isStemSolo);
+            if (nativeAudios[s]) nativeAudios[s].muted = !isStemSolo;
         });
     } else {
         Object.keys(instances).forEach(s => {
             const isMutedByBtn = document.querySelector(`.audacity-studio[data-song-id="${songId}"] .track-row[data-stem="${s}"] .btn-mute`).classList.contains('active');
-            instances[s].setMuted(isMutedByBtn);
+            if (instances[s]) instances[s].setMuted(isMutedByBtn);
+            if (nativeAudios[s]) nativeAudios[s].muted = isMutedByBtn;
         });
     }
 }
 
 function changeVolume(songId, stem, value) {
     const ws = wavesurferInstances[songId][stem];
-    if (ws) {
-        ws.setVolume(parseFloat(value));
-    }
+    const audio = nativeAudioElements[songId][stem];
+    const vol = parseFloat(value);
+
+    if (ws) ws.setVolume(vol);
+    if (audio) audio.volume = vol;
 }
 
 function updateTimeDisplay(songId, current, total) {
@@ -135,7 +168,7 @@ function updateTimeDisplay(songId, current, total) {
 }
 
 function formatTime(seconds) {
-    if (isNaN(seconds)) return "00:00";
+    if (isNaN(seconds) || seconds < 0) return "00:00";
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
