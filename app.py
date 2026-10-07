@@ -24,12 +24,15 @@ def get_user_directories():
 
 def split_audio_task(task_id, filepath, output_dir):
     tasks[task_id]['status'] = 'processing'
-    tasks[task_id]['logs'] = ['Starte KI-Audio-Trennung (Demucs)...']
+    tasks[task_id]['logs'] = ['Starte KI-Audio-Trennung (Demucs GPU)...']
     
     try:
+        # --mp3 erzwingt komprimierte MP3s für ladefreie Web-Wiedergabe
         command = [
             "python", "-m", "demucs",
             "-n", "htdemucs",
+            "--mp3",
+            "--mp3-bitrate", "128",
             "--out", output_dir,
             filepath
         ]
@@ -42,7 +45,6 @@ def split_audio_task(task_id, filepath, output_dir):
             bufsize=1
         )
         
-        # Liest Ausgaben zeilenweise für das Live-Terminal im Frontend
         for line in iter(process.stdout.readline, ''):
             clean_line = line.strip()
             if clean_line:
@@ -58,7 +60,7 @@ def split_audio_task(task_id, filepath, output_dir):
             tasks[task_id]['message'] = 'Audio erfolgreich getrennt!'
         else:
             tasks[task_id]['status'] = 'error'
-            tasks[task_id]['message'] = 'Fehler: Server hat eventuell nicht genug RAM (Out of Memory auf Render Free).'
+            tasks[task_id]['message'] = 'Fehler beim Verarbeiten des Audio-Tracks.'
 
     except Exception as e:
         tasks[task_id]['status'] = 'error'
@@ -72,7 +74,7 @@ def index():
     if os.path.exists(user_output):
         for root, dirs, files in os.walk(user_output):
             for file in files:
-                if file.endswith(('.wav', '.mp3', '.flac', '.ogg')):
+                if file.endswith(('.mp3', '.wav', '.flac', '.ogg')):
                     full_path = os.path.join(root, file)
                     rel_path = os.path.relpath(full_path, user_output).replace('\\', '/')
                     
@@ -108,7 +110,7 @@ def upload_file():
     tasks[task_id] = {
         'status': 'queued',
         'message': 'Datei empfangen. Vorbereitung...',
-        'logs': ['Upload abgeschlossen. Job gestartet...']
+        'logs': ['Upload abgeschlossen. Starte GPU-Verarbeitung...']
     }
     
     thread = threading.Thread(target=split_audio_task, args=(task_id, filepath, user_output))
