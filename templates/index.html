@@ -6,7 +6,6 @@
     <title>AI Audio Splitter Studio</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- WaveSurfer.js CDN für Audacity-Style Wellenformen -->
     <script src="https://unpkg.com/wavesurfer.js@7"></script>
 </head>
 <body>
@@ -60,7 +59,6 @@
                         <div class="audacity-studio" data-song-id="{{ song_id }}">
                             <div class="studio-header">
                                 <h3 class="song-title">🎵 {{ song_name }}</h3>
-                                <!-- Master Controls für synchrone Wiedergabe -->
                                 <div class="master-controls">
                                     <button class="btn-master-play" onclick="toggleMasterPlay('{{ song_id }}')">▶ / ❚❚ Master Play</button>
                                     <button class="btn-master-stop" onclick="stopMasterPlay('{{ song_id }}')">◼ Stop</button>
@@ -68,15 +66,13 @@
                                 </div>
                             </div>
 
-                            <!-- Multitrack Spuren untereinander -->
                             <div class="multitrack-container">
                                 {% for item in stems %}
                                     <div class="track-row" data-stem="{{ item.stem }}">
-                                        <!-- Linkes Bedienfeld (Audacity Track Control) -->
                                         <div class="track-controls">
                                             <div class="track-meta">
                                                 <span class="stem-badge stem-{{ item.stem }}">{{ item.stem | upper }}</span>
-                                                <a href="{{ url_for('download_file', filename=item.filename) }}" class="btn-download" download title="Download">⬇ WAV</a>
+                                                <a href="{{ url_for('download_file', filename=item.filename) }}" class="btn-download" download title="Download">⬇ MP3</a>
                                             </div>
                                             <div class="track-buttons">
                                                 <button class="btn-mute" onclick="toggleMute('{{ song_id }}', '{{ item.stem }}', this)">M</button>
@@ -88,9 +84,11 @@
                                             </div>
                                         </div>
 
-                                        <!-- Rechte Wellenform-Anzeige (Waveform Canvas) -->
                                         <div class="waveform-container">
+                                            <div class="waveform-loading" id="loading-{{ song_id }}-{{ item.stem }}">Lade Waveform...</div>
                                             <div id="waveform-{{ song_id }}-{{ item.stem }}" class="waveform-element" data-url="{{ url_for('download_file', filename=item.filename) }}"></div>
+                                            <!-- Fallback Audio-Element -->
+                                            <audio id="audio-fallback-{{ song_id }}-{{ item.stem }}" src="{{ url_for('download_file', filename=item.filename) }}" preload="metadata" class="native-audio-fallback"></audio>
                                         </div>
                                     </div>
                                 {% endfor %}
