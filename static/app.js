@@ -17,6 +17,7 @@ function initWaveforms() {
 
         trackElements.forEach(elem => {
             const stem = elem.id.split('-').pop();
+            const audioUrl = elem.dataset.url;
             const loadingElem = document.getElementById(`loading-${songId}-${stem}`);
             const audioFallback = document.getElementById(`audio-fallback-${songId}-${stem}`);
 
@@ -29,9 +30,10 @@ function initWaveforms() {
             else if (stem === 'other') { waveColor = '#8b5cf6'; progressColor = '#a78bfa'; }
 
             try {
-                // Verbinde WaveSurfer direkt mit dem HTML5 Audio-Element
+                // WaveSurfer mit expliziter URL und HTML5-Media-Kopplung
                 const ws = WaveSurfer.create({
                     container: elem,
+                    url: audioUrl,
                     media: audioFallback,
                     waveColor: waveColor,
                     progressColor: progressColor,
@@ -43,6 +45,7 @@ function initWaveforms() {
 
                 wavesurferInstances[songId][stem] = ws;
 
+                // Sobald die Wellenform berechnet ist, Ladeanzeige ausblenden
                 ws.on('ready', () => {
                     if (loadingElem) loadingElem.style.display = 'none';
                     masterDuration = ws.getDuration();
@@ -60,8 +63,8 @@ function initWaveforms() {
                 });
 
                 ws.on('error', (err) => {
-                    console.error('WaveSurfer Fehler:', err);
-                    if (loadingElem) loadingElem.textContent = 'Audio bereit (Fallback-Modus)';
+                    console.error('WaveSurfer Rendering-Fehler:', err);
+                    if (loadingElem) loadingElem.textContent = 'Spur geladen (Audio bereit)';
                 });
 
             } catch (err) {
