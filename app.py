@@ -3,6 +3,7 @@ import os
 import uuid
 import threading
 import subprocess
+import urllib.parse
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'geheimer-audio-splitter-key-9988')
@@ -27,7 +28,6 @@ def split_audio_task(task_id, filepath, output_dir):
     tasks[task_id]['logs'] = ['Starte KI-Audio-Trennung (Demucs GPU)...']
     
     try:
-        # --mp3 erzwingt komprimierte MP3s für ladefreie Web-Wiedergabe
         command = [
             "python", "-m", "demucs",
             "-n", "htdemucs",
@@ -127,7 +127,8 @@ def get_status(task_id):
 @app.route('/download/<path:filename>')
 def download_file(filename):
     _, user_output = get_user_directories()
-    return send_from_directory(user_output, filename)
+    decoded_filename = urllib.parse.unquote(filename)
+    return send_from_directory(user_output, decoded_filename)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
